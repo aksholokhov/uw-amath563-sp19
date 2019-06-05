@@ -1,0 +1,290 @@
+\documentclass[11pt,letterpaper]{article}
+
+%%%%% USER CONFIGURATION %%%%%
+\newcommand{\userName}{Aleksei Sholokhov}
+\newcommand{\userId}{Lesha}
+\newcommand{\department}{Department of Applied Mathematic}
+\newcommand{\institution}{University of Washington}
+\newcommand{\projectNameShort}{Sparse Phase Retrieval}
+\newcommand{\projectNameLong}{The Final Project for AMATH 563}
+
+\newcommand{\Peng}[1]{\textbf{Peng (#1):}}
+\newcommand{\Sasha}[1]{\textbf{Sasha (#1):}}
+\newcommand{\Lesha}[1]{\textbf{\userId\ (#1):}}
+
+\newif\ifLISTINGS
+\newif\ifALGORITHMS
+\newif\ifTiKZ
+% Toggles, set to false if not needed since it will speed up the compilation
+\LISTINGSfalse   % LISTINGS toggle
+\ALGORITHMStrue % ALGORITHMS toggle
+\TiKZfalse       % TiKZ toggle
+
+\input{useful_packages}
+\input{math_macros}
+
+
+%%%%%%%%%%%%%%%
+% PAGE FORMAT %
+%%%%%%%%%%%%%%%
+
+\pagestyle{fancy}
+\setlength\parindent{0in}
+\setlength\parskip{0.1in}
+\setlength\headheight{15pt}
+
+%%%%%%%%%%% HEADER / FOOTER %%%%%%%%%%%
+\chead{\textit{\projectNameShort}}
+\lhead{\textsc{\userName}}
+\rhead{\textsc{Research Diary}}
+\rfoot{}
+\cfoot{\color{gray} \textsc{\thepage~/~\pageref*{LastPage}}}
+\lfoot{}
+
+% University Logo
+\newcommand{\univlogo}{%
+  \noindent % University Logo
+  \begin{wrapfigure}{r}{0.31\textwidth}
+    \vspace{-24pt}
+    \begin{center}
+      \includegraphics[width=0.31\textwidth]{Images/univ-logo.jpg}
+    \end{center}
+    \vspace{-10pt}
+  \end{wrapfigure}
+}
+
+\renewcommand{\thesection}{\Roman{section}}
+% \renewcommand{\thesubsection}{\thesection.\Roman{subsection}}
+
+%%%%%%%%%%%%
+% CAPTIONS %
+%%%%%%%%%%%%
+
+%%%% Paragraph separation
+%\setlength{\parskip}{.5em}
+
+\numberwithin{equation}{section} % Number equations within sections (i.e. 1.1, 1.2, 2.1, 2.2 instead of 1, 2, 3, 4)
+\numberwithin{figure}{section} % Number figures within sections (i.e. 1.1, 1.2, 2.1, 2.2 instead of 1, 2, 3, 4)
+\numberwithin{table}{section} % Number tables within sections (i.e. 1.1, 1.2, 2.1, 2.2 instead of 1, 2, 3, 4)
+
+%%%%%%%%%%%%
+% DOCUMENT %
+%%%%%%%%%%%%
+
+\begin{document}
+\title{Research Diary}
+\univlogo
+{\Huge \projectNameShort}\\[2mm]
+
+%\vspace{1em}
+{\large \underline{\textbf{\uppercase{\projectNameLong}}}}\\
+
+\section*{Log}
+\textit{Last modified: \today}
+\begin{itemize}
+    \item{6/4/19} -- Found a mistake in prox (sign of b), fixed it. Made the algorithm to converge on synthetic data.
+    \item 6/3/19 -- Started figuring out how to implement Duchi initialization. Got stack on how to solve the optimization subproblem. 
+\end{itemize}
+
+\section*{Plan}
+\begin{enumerate}
+    \item \sout{Rederive the algorithm, making noting control points}
+    \item \sout{Make the algorithm to converge on simple synthetic data}
+    \item \sout{Make the algorithm to converge on real data}
+    \item Make some tests
+    \begin{itemize}
+        \item Different step-sizes
+        \item Different pictures
+        \item Colored pictures
+    \end{itemize}
+    \item Derive algorithms for two other losses (\ref{eq:first_norm_and_square_phase_retrieval_loss} and \ref{eq:double_square_phase_retrieval_loss})
+    \item Compare three algorithms in time/iterations prospective
+    \item Make a write-up
+    \item Figure out the Duchi initialization (Algorithm 2 in \cite{Duchi2017PhaseRetrival})
+\end{enumerate}
+
+\listoftodos
+
+\newpage
+
+\section{Introduction} 
+We use Relax-and-Split for Phase Retrieval. We analyze three phase retrieval loss formulations and solve them with the Relax-and-Split algorithm. In particular we are curious how does relax-and-split behave on quadratic losses comparing to the first norm loss. 
+
+
+\subsection*{Relax-And-Split}
+    \paragraph{Loss-function} We consider the problem class of
+    \[
+        f(x) = g(x) + h(Ax)
+    \]
+    where 
+    \begin{itemize}
+        \item $g(x)$ -- smooth and convex 
+        \item $h(x)$ -- non-smooth, non-convex, separable and prox-friendly 
+    \end{itemize}
+    
+    \paragraph{Relaxed Loss Function}
+    We relax the objective with 
+    \[
+        f_{\nu}(x, w) = \underbrace{h(w) + \frac{1}{2\nu}\|Ax - w\|_2^2}_{\text{Moreau envelope}} + g(x)
+    \]
+    
+    \begin{tip} \Peng{6/3/19} when $g = 0$ the stationary points for the relaxed problem should match with original ones. For general $g$ this is not true. \\
+        \Sasha{6/4/19} for a non-convex $g$ we can't say anything. 
+    \end{tip}
+
+    
+    We use alternating minimization approach to find minimum of $f_{\nu}$
+    
+    \begin{algorithm}
+        \caption{Relax-and-Split \cite{Zheng2018RelaxAndSplit}}
+        \label{alg:relax-and-split}
+        \begin{algorithmic}[1]
+            \State $x^{k+1} \gets \argmin_{x \in \C} \left\{\frac{1}{2\nu}\|Ax - w^k\|^2 + g(x)\right\}$
+            \State $w^{k+1} \gets \argmin_{w \in \C} \left\{\frac{1}{2\nu}\|Ax^{k+1} - w\|^2 + h(w)\right\} $
+        \end{algorithmic}
+    \end{algorithm}
+
+    \lowtodo{Note that the value should decrease after each line. Make a test which checks that it holds.}
+    
+\subsection*{Phase Retrieval} 
+
+The phase retrieval problem is 
+\eq{
+    \label{eq:first_norm_phase_retrieval_loss}
+    \min_{x \in \C} f(x) = \min_{x \in \C} \sum_{i = 1}^{kn} ||a_i^Tx| - b_i| = \min_{x \in \C}\||Ax| - b\|_1 
+}
+where $x \in \C^n$, $b = |Ax^*| \in R^{kn}_+$, $A$ is a Hadamard transformation matrix:
+
+\[
+    A = [H_mS_1, H_mS_2, \dots, H_mS_k]^T \in R^{kn\times n} ,\ S_j \in \diag(s_j), \ s_j \in \{-1, 1\}^m
+\]
+
+\begin{tip}
+\Peng{6/3/19} Duchi showed (in \cite{Duchi2017PhaseRetrival}?) that for any optimal solution $x^* \in \C^n$ there is a solution $\bar{x}^*$ such that $f(x^*) = f(\bar{x}^*)$.  \\
+\Lesha{6/4/19} Is it true that $\|x^* - \bar{x}^*\|$ is small in some sense? If just replace optimization in $\C$ with optimization in $\R$ will I get $\bar{x}^*$ instead $x^*$ as a result having the same initialization? \\
+\Sasha{6/4/19} The rotation of the solution does not change the loss function's value, as $e^{i\phi}$ cancels out because of squares and absolute values, so for any complex root we have a real root. Another way: we find a real root and then rotate it for finding an \textit{appropriate} complex solution (this is called phase reconstruction). There is a guy (D. ), who claims that they can do it but it is difficult. \textit{Overarching: we're fine with optimization over $\R$ instead of over $\C$.}
+\end{tip}
+
+There are two alternative formulations for phase retrieval:
+
+\eq{
+    \label{eq:first_norm_and_square_phase_retrieval_loss}
+    \min_{x \in \C} \sum_{i = 1}^{kn} |(a_i^Tx)^2 - b_i^2| = \min_{x \in \C} \|(Ax)^2 - b^2\|_1 
+}
+
+and 
+
+\eq{
+    \label{eq:double_square_phase_retrieval_loss}
+    \min_{x \in \C} \sum_{i=1}^{kn} ((a_i^Tx)^2 - b_i^2)^2 = \min_{x \in \C} \|(Ax)^2 - b^2\|_2^2
+}
+
+\begin{tip}
+\Peng{defense} the last two problems are much harder to optimize because $A^2$ squares the condition number as well. This is one of the reasons why Relax-and-Split worked better than other methods developed for losses \ref{eq:first_norm_and_square_phase_retrieval_loss} and \ref{eq:double_square_phase_retrieval_loss} (see Table 4 in \cite{Zheng2018RelaxAndSplit})    
+\end{tip}
+
+
+\paragraph{''Duchi Inicialization''} We initialize $x_0$ with ''Duchi Inicialization'' (Algorithm 2 from \cite{Duchi2017PhaseRetrival}).
+
+\begin{tip}
+    \Lesha{6/5/19} This part is postponed, because by now \ref{eq:first_norm_phase_retrieval_loss} with relax-and-split converges from pretty distant initial points (like, when 90\% pixels are missing). Need more motivation to consider such a cumbersome initialization routine.
+\end{tip}
+ 
+ In particular, we make an estimation of the norm and the direction for a (global?) solution for the problem:
+
+\eq{
+    \label{eq:duchi_initialization}
+    \hat{r}^2 & := \frac{1}{m}\sum_i b_i \\
+    \mathcal{I} & := \bra{i: \ b_i \leq \half \hat{r}^2} \\
+    X^{init} & := \sum_{i \in \mathcal{I}} a_ia_i^H \\
+    \hat{d} & := \argmin_{d \in \unitsphere{0}}d^TX^{init}d \\
+    \hat{x} & := \hat{d}\hat{r}
+} 
+
+\hightodo{It looks like $\hat{r}^2 = \frac{1}{m}\sum_i b_i^2$ in case of \ref{eq:first_norm_phase_retrieval_loss} and as stated above for \ref{eq:first_norm_and_square_phase_retrieval_loss} and \ref{eq:double_square_phase_retrieval_loss}. Check it out.}
+
+We do not have an access to columns and rows of $A$, so we can't explicitly compose $X^{init}$. Yet we can work with it implicitly: 
+\[
+    X^{init}y = A^T(\mathcal{I}\odot Ay)
+\]
+Where by $\odot$ we mean an element-vise (Hadamard) product. 
+Clearly, we're looking for the eigenvector which corresponds to the minimal eigenvalue.
+\begin{tip}
+    \Peng{in \cite{Zheng2018RelaxAndSplit}} we use 10 power iterations for initialization.
+    \hightodo{Power initialization looks for $\lambda_{max}$, which means we maximize the optimization subproblem instead of minimization. Ask Peng.}
+\end{tip}
+
+
+\section{Dataset and Preprocessing} % (fold)
+\label{sec:dataset_and_preprocessing}
+We use three pictures from the Internet:
+
+
+\section{Methods} % (fold)
+\label{sec:methods}
+
+\subsection{Algorithms} % (fold)
+\label{sub:algorithms}
+
+\section{Results} % (fold)
+\label{sec:results}
+
+\subsection{Figures} % (fold)
+\label{sub:figures}
+
+% subsection figures (end)
+
+\subsection{Tables} 
+\clearpage
+
+
+\appendix
+\section{Proofs}
+\begin{lemma}
+    \label{lemma:phase_retrieval_prox}
+    Let $h$ be defined as
+    \[
+        h(x) = ||x|-b|, \ b \in \R_+ 
+    \]
+    then the proximal operator of $h$ is 
+    \[
+        \prox_{\nu h}(y) = \pa{\pa{|y| - b - \nu}_+ - \pa{-|y| + b - \nu}_+ + b}_+
+    \]
+\end{lemma}
+\begin{proof}
+    By definition 
+    \[
+        \prox_{\nu h}(y) = \argmin_{x \in \R} \frac{1}{2\nu}(x - y)^2 + ||x|-b| = 
+    \]
+    \begin{tip}
+    \Peng{6/3/19} this is equivalent to
+    \lowtodo{It works, but I still don't understand why this transition is true. Ask Peng again.}
+    \end{tip} 
+    \[
+        = \argmin_{|x| \in \R_+} \frac{1}{2\nu}(|x|-|y|)^2 + ||x| - b| = \argmin_{z \geq 0}\frac{1}{2\nu}(z - |y|)^2 + |z-b| = 
+    \]
+    which is just a $\prox$ of a shifted absolute value of the point $|y|$
+    \[
+        = \prox_{\nu|z-b|}(|y|)
+    \]
+    which is, according to \cite{Parikh2014} Eq. 2.2 (precomposition) and Eq. 6.9, is equal to
+    \[
+        = ((|y| - b - \nu)_+ - (-|y|+b - \nu)_+ + b)_+
+    \]
+    where the outer positive slice comes from the constraint $z \geq 0$.
+    \begin{tip}
+        \Peng{6/3/19} I forgot about this last slice and everything worked out anyway. 
+        \lowtodo{Check that it really works both ways and figure out why.}    
+    \end{tip}
+
+\end{proof}
+\section{Resources}
+
+%----------------------------------------------------------------------------------------
+%   REFERENCE LIST
+%----------------------------------------------------------------------------------------
+\bibliographystyle{alpha}
+\bibliography{phase_retrieval_bibliography}
+\clearpage
+
+\end{document}
